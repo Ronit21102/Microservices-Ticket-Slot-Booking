@@ -137,4 +137,236 @@ Now, you can:
   kubectl get svc
   ```
 
-Let me know if you have any issues! 🚀
+### **🔍 What is `Object.setPrototypeOf(this, CustomError.prototype);` and Why Do We Need It?**
+
+In JavaScript (and TypeScript), **when you extend the `Error` class**, you must manually fix the prototype chain using:
+
+```ts
+Object.setPrototypeOf(this, CustomError.prototype);
+```
+This ensures that **instances of `CustomError` behave correctly as subclasses of `Error`**.
+
+---
+
+## **1️⃣ The Problem with Extending `Error`**
+Normally, when you extend a class, JavaScript **automatically sets the prototype** so that `instanceof` checks work:
+
+```ts
+class Parent {}
+class Child extends Parent {}
+
+const obj = new Child();
+console.log(obj instanceof Child); // ✅ true
+console.log(obj instanceof Parent); // ✅ true
+```
+
+However, when extending **built-in classes like `Error`**, **JavaScript does not correctly set the prototype chain**.  
+
+For example, without `Object.setPrototypeOf`, this happens:
+
+```ts
+class CustomError extends Error {
+  constructor() {
+    super("Something went wrong");
+  }
+}
+
+const err = new CustomError();
+console.log(err instanceof CustomError); // ❌ false (unexpected behavior!)
+console.log(err instanceof Error); // ✅ true
+```
+
+🚨 **Why?**  
+- `super("Something went wrong")` correctly calls the `Error` constructor.
+- But the prototype chain **doesn’t properly link `CustomError` to `Error`**.
+- This means `instanceof CustomError` **fails**, breaking error handling logic.
+
+---
+
+## **2️⃣ Fixing the Prototype Chain with `Object.setPrototypeOf`**
+To fix this, we manually set the prototype **after calling `super()`**:
+
+```ts
+class CustomError extends Error {
+  constructor() {
+    super("Something went wrong");
+
+    // 🔹 Manually set the prototype to fix instanceof behavior
+    Object.setPrototypeOf(this, CustomError.prototype);
+  }
+}
+
+const err = new CustomError();
+console.log(err instanceof CustomError); // ✅ true (now it works!)
+console.log(err instanceof Error); // ✅ true
+```
+
+Now, `CustomError` behaves like a **true subclass of `Error`**, and `instanceof` works correctly.
+
+---
+
+## **3️⃣ Why is This Important for `CustomError`?**
+Your `CustomError` class is an **abstract base class** for all custom errors:
+
+```ts
+export abstract class CustomError extends Error {
+  abstract statusCode: number;
+
+  constructor(message: string) {
+    super(message);
+
+    Object.setPrototypeOf(this, CustomError.prototype); // 🔥 Fix prototype chain
+  }
+
+  abstract serializeErrors(): { message: string; field?: string }[];
+}
+```
+
+- **Why Use `abstract`?**  
+  - Forces child classes to implement `serializeErrors()`, ensuring consistency across all error types.
+
+- **Why Use `Object.setPrototypeOf`?**  
+  - Ensures that `instanceof` checks work correctly when catching errors in middleware.
+
+---
+
+## **4️⃣ Real-World Use Case**
+Let’s say you have multiple error types extending `CustomError`:
+
+### ✅ **`RequestValidationError.ts`**
+```ts
+import { ValidationError } from "express-validator";
+import { CustomError } from "./custom-error";
+
+export class RequestValidationError extends CustomError {
+  statusCode = 400;
+
+  constructor(public errors: ValidationError[]) {
+    super("Invalid request parameters");
+
+    Object.setPrototypeOf(this, RequestValidationError.prototype);
+  }
+
+  serializeErrors() {
+    return this.errors.map(err => ({ message: err.msg, field: err.param }));
+  }
+}
+```
+
+### ✅ **`DatabaseConnectionError.ts`**
+```ts
+import { CustomError } from "./custom-error";
+
+export class DatabaseConnectionError extends CustomError {
+  statusCode = 500;
+  reason = "Error connecting to database";
+
+  constructor() {
+    super("Database connection failed");
+
+    Object.setPrototypeOf(this, DatabaseConnectionError.prototype);
+  }
+
+  serializeErrors() {
+    return [{ message: this.reason }];
+  }
+}
+```
+
+### ✅ **Express Error Handler Middleware**
+```ts
+import { Request, Response, NextFunction } from "express";
+import { CustomError } from "../errors/custom-error";
+
+export const errorHandler = (err: Error, req: Request, res: Response, next: NextFunction) => {
+  if (err instanceof CustomError) {
+    return res.status(err.statusCode).send({ errors: err.serializeErrors() });
+  }
+
+  res.status(500).send({ errors: [{ message: "Something went wrong" }] });
+};
+```
+
+---
+
+## **5️⃣ What Happens Without `Object.setPrototypeOf`?**
+If we **don’t** set the prototype manually, `instanceof` fails:
+
+```ts
+const err = new RequestValidationError([]);
+console.log(err instanceof RequestValidationError); // ❌ false
+console.log(err instanceof CustomError); // ❌ false
+```
+
+This means **Express middleware won’t recognize the error correctly**, and generic error handling would be used instead.
+
+---
+
+## **🚀 Summary**
+| **Concept** | **Why It Matters?** |
+|------------|----------------|
+| **Extending `Error` is Broken in JS** | JavaScript doesn’t correctly set prototypes for built-in classes like `Error`. |
+| **`Object.setPrototypeOf(this, CustomError.prototype);`** | Fixes `instanceof` checks, ensuring errors work correctly. |
+| **Abstract Class `CustomError`** | Forces child errors (`RequestValidationError`, etc.) to implement `serializeErrors()`. |
+| **Error Middleware Uses `instanceof`** | Without fixing the prototype, Express middleware won’t recognize custom errors. |
+
+Now, your **error handling is consistent and properly structured**! 🚀
+
+### **Why is TypeScript Saying `NotFoundError` is Missing `statusCode` and `serializeErrors`?**  
+
+The error is happening because **`CustomError` is an abstract class** and requires all subclasses to implement:  
+1. **`statusCode`** (a number).  
+2. **`serializeErrors()`** (a method returning an array of error objects).  
+
+Since `NotFoundError` **extends `CustomError` but does not define these properties/methods**, TypeScript throws an error.
+
+---
+
+### **🔧 Fix: Implement Required Properties and Methods**
+You must **define `statusCode` and `serializeErrors()`** in `NotFoundError`:
+
+```ts
+import { CustomError } from "./custom-error";
+
+export class NotFoundError extends CustomError {
+  statusCode = 404; // ✅ Required property
+
+  constructor() {
+    super("Route not found");
+
+    Object.setPrototypeOf(this, NotFoundError.prototype);
+  }
+
+  serializeErrors() {
+    return [{ message: "Not Found" }]; // ✅ Required method
+  }
+}
+```
+
+---
+
+### **🔍 Why is This Required?**
+#### **1️⃣ `CustomError` is Abstract**
+```ts
+export abstract class CustomError extends Error {
+  abstract statusCode: number; // ❗ Must be implemented in subclasses
+  abstract serializeErrors(): { message: string; field?: string }[]; // ❗ Must be implemented
+
+  constructor(message: string) {
+    super(message);
+    Object.setPrototypeOf(this, CustomError.prototype);
+  }
+}
+```
+- The `abstract` keyword **forces subclasses to implement these properties/methods**.
+- Since `NotFoundError` extends `CustomError`, it **must** implement `statusCode` and `serializeErrors()`.
+
+---
+
+### **🚀 Summary**
+| **Issue** | **Fix** |
+|----------|--------|
+| `NotFoundError` extends `CustomError` but doesn't implement `statusCode` or `serializeErrors()` | Add `statusCode = 404;` and `serializeErrors() { return [{ message: "Not Found" }]; }` |
+| `CustomError` is an abstract class | All child classes **must** implement abstract methods/properties |
+
+Now, TypeScript will be happy! 🎉 Let me know if you need more clarification. 🚀
