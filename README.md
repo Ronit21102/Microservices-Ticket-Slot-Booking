@@ -369,4 +369,128 @@ export abstract class CustomError extends Error {
 | `NotFoundError` extends `CustomError` but doesn't implement `statusCode` or `serializeErrors()` | Add `statusCode = 404;` and `serializeErrors() { return [{ message: "Not Found" }]; }` |
 | `CustomError` is an abstract class | All child classes **must** implement abstract methods/properties |
 
-Now, TypeScript will be happy! 🎉 Let me know if you need more clarification. 🚀
+### **Understanding `statics` and `methods` in Mongoose**
+In Mongoose, you can define **custom functions** on your models using **`statics`** and **`methods`**, but they work in different ways.
+
+---
+
+## **1️⃣ What is the Difference Between `statics` and `methods`?**
+| Feature | `statics` (Model-Level) | `methods` (Instance-Level) |
+|---------|----------------|----------------|
+| **Works On** | The **entire model (collection)** | A **single document (instance)** |
+| **Use Case** | Operations that query the **whole collection** (e.g., find users by email) | Operations that work on **one document** (e.g., hash a user's password) |
+| **Example Call** | `User.findByEmail("test@example.com")` | `user.getFullName()` |
+
+---
+
+## **2️⃣ Example of `statics` (Used on the Model)**
+🔹 **Use case:** Find a user by email.
+
+```ts
+import mongoose from "mongoose";
+
+// Define a User schema
+const userSchema = new mongoose.Schema({
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true }
+});
+
+// 🔹 Define a static method (works on the model)
+userSchema.statics.findByEmail = function (email: string) {
+  return this.findOne({ email }); // `this` refers to the Model
+};
+
+// Create the User model
+const User = mongoose.model("User", userSchema);
+
+// 🔹 Using the static method
+const user = await User.findByEmail("test@example.com");
+console.log(user);
+```
+
+✅ **Why Use `statics`?**  
+- This method **operates on the entire model (`User`)** and does not need a specific document.
+- `User.findByEmail("test@example.com")` works directly on the **Model** (not on an instance).
+
+---
+
+## **3️⃣ Example of `methods` (Used on a Document)**
+🔹 **Use case:** Get the full name of a user.
+
+```ts
+import mongoose from "mongoose";
+
+// Define a User schema
+const userSchema = new mongoose.Schema({
+  firstName: { type: String, required: true },
+  lastName: { type: String, required: true }
+});
+
+// 🔹 Define an instance method (works on a document)
+userSchema.methods.getFullName = function () {
+  return `${this.firstName} ${this.lastName}`; // `this` refers to the document
+};
+
+// Create the User model
+const User = mongoose.model("User", userSchema);
+
+// 🔹 Using the instance method
+const user = await User.findOne();
+console.log(user.getFullName()); // ✅ "John Doe"
+```
+
+✅ **Why Use `methods`?**  
+- `methods` are used **on a specific document** (not the entire model).  
+- `user.getFullName()` is **called on an instance**, meaning you must first retrieve a user before calling this method.
+
+---
+
+## **4️⃣ Key Differences in How They Are Used**
+| Feature | `statics` (Model-Level) | `methods` (Instance-Level) |
+|---------|----------------|----------------|
+| **What `this` Refers To** | The **Model** (e.g., `User`) | A **single Document** (e.g., `user`) |
+| **Example Function** | `findByEmail(email: string)` | `getFullName()` |
+| **How to Call It** | `User.findByEmail("test@example.com")` | `user.getFullName()` |
+| **Use Case** | Finding users, counting documents | Formatting data, hashing passwords |
+
+---
+
+## **5️⃣ Real-World Use Cases**
+✅ **Using `statics` for Authentication**
+```ts
+userSchema.statics.authenticate = async function (email: string, password: string) {
+  const user = await this.findOne({ email });
+  if (!user) return null;
+  
+  const isMatch = await bcrypt.compare(password, user.password);
+  return isMatch ? user : null;
+};
+```
+🔹 **Usage:**  
+```ts
+const loggedInUser = await User.authenticate("test@example.com", "password123");
+```
+
+✅ **Using `methods` for Hashing a Password**
+```ts
+userSchema.methods.hashPassword = async function () {
+  this.password = await bcrypt.hash(this.password, 10);
+};
+```
+🔹 **Usage:**  
+```ts
+const user = new User({ email: "test@example.com", password: "mypassword" });
+await user.hashPassword();
+await user.save();
+```
+
+---
+
+## **🚀 Summary**
+| Feature | `statics` (Model-Level) | `methods` (Instance-Level) |
+|---------|----------------|----------------|
+| **Works On** | The **entire model (collection)** | A **single document (instance)** |
+| **Use Case** | Finding users, authentication | Hashing passwords, formatting data |
+| **How to Call It** | `User.findByEmail("test@example.com")` | `user.getFullName()` |
+
+Would you like me to help you implement this in a full Express API? 🚀😊
