@@ -493,4 +493,120 @@ await user.save();
 | **Use Case** | Finding users, authentication | Hashing passwords, formatting data |
 | **How to Call It** | `User.findByEmail("test@example.com")` | `user.getFullName()` |
 
-Would you like me to help you implement this in a full Express API? 🚀😊
+### **What are Generics in TypeScript?**  
+**Generics** in TypeScript **allow you to create reusable, type-safe components and functions** that work with multiple types instead of a single specific type.
+
+---
+
+## **1️⃣ Why Do We Need Generics?**
+Let's say you want a function that **returns the first element** of an array.  
+
+Without generics, you might write:
+```ts
+function getFirstElement(arr: any[]): any {
+  return arr[0];
+}
+
+const num = getFirstElement([1, 2, 3]); // num is of type `any`
+console.log(num.toUpperCase()); // ❌ No type safety (runtime error!)
+```
+🔹 The return type is `any`, meaning **TypeScript cannot prevent errors** like calling `toUpperCase()` on a number.
+
+✅ **With Generics:**
+```ts
+function getFirstElement<T>(arr: T[]): T {
+  return arr[0];
+}
+
+const num = getFirstElement<number>([1, 2, 3]); // num is of type `number`
+const str = getFirstElement<string>(["hello", "world"]); // str is `string`
+```
+🔹 Now, TypeScript knows the exact type of the return value!
+
+---
+
+## **2️⃣ How to Use Generics in Functions**
+### **Example 1: Generic Function**
+```ts
+function identity<T>(value: T): T {
+  return value;
+}
+
+console.log(identity<number>(42)); // ✅ 42 (Type: number)
+console.log(identity<string>("Hello")); // ✅ "Hello" (Type: string)
+```
+✅ The function **preserves the type of the input** and ensures type safety.
+
+---
+
+## **3️⃣ Generics in Interfaces**
+You can use generics in **interfaces** to make them flexible.
+
+```ts
+interface Box<T> {
+  value: T;
+}
+
+const stringBox: Box<string> = { value: "TypeScript" };
+const numberBox: Box<number> = { value: 100 };
+```
+🔹 Now, `Box<T>` can hold **any type** while keeping type safety.
+
+---
+
+## **4️⃣ Generics in Classes**
+You can also create **generic classes**:
+
+```ts
+class Storage<T> {
+  private data: T[] = [];
+
+  add(item: T) {
+    this.data.push(item);
+  }
+
+  getAll(): T[] {
+    return this.data;
+  }
+}
+
+const numberStorage = new Storage<number>();
+numberStorage.add(10);
+numberStorage.add(20);
+console.log(numberStorage.getAll()); // ✅ [10, 20]
+
+const stringStorage = new Storage<string>();
+stringStorage.add("Hello");
+console.log(stringStorage.getAll()); // ✅ ["Hello"]
+```
+🔹 **Why Use Generics?**
+- `Storage<T>` **works for any data type**.
+- TypeScript **enforces type safety**.
+
+---
+
+## **5️⃣ Generics with Multiple Types**
+You can have multiple **generic types**:
+
+```ts
+function pair<K, V>(key: K, value: V): [K, V] {
+  return [key, value];
+}
+
+const p = pair<string, number>("age", 30);
+console.log(p); // ✅ ["age", 30]
+```
+🔹 Here, `K` and `V` allow different types for **key-value pairs**.
+
+---
+
+## **🚀 Summary**
+| Feature | Example |
+|---------|---------|
+| **Generic Function** | `function identity<T>(value: T): T { return value; }` |
+| **Generic Interface** | `interface Box<T> { value: T; }` |
+| **Generic Class** | `class Storage<T> { private data: T[] = []; }` |
+| **Multiple Generics** | `function pair<K, V>(key: K, value: V): [K, V]` |
+
+Generics **make TypeScript more flexible and reusable** while ensuring **type safety**. 🚀  
+Would you like to see an advanced example with constraints? 😊
