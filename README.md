@@ -609,4 +609,85 @@ console.log(p); // ✅ ["age", 30]
 | **Multiple Generics** | `function pair<K, V>(key: K, value: V): [K, V]` |
 
 Generics **make TypeScript more flexible and reusable** while ensuring **type safety**. 🚀  
-Would you like to see an advanced example with constraints? 😊
+Yes, if you're doing **server-side rendering (SSR)**, the **JWT token must already be set in cookies** so that it is sent automatically with each request.  
+
+---
+
+### **How JWT Works with SSR**
+Since SSR runs on the **server** (e.g., in Next.js or Express), the server itself makes the request **before sending the page to the client**. The JWT token must be available in the cookies for the server to authenticate the user.
+
+✅ **Typical SSR Flow:**
+1. User requests a page (`/dashboard`).
+2. The **server processes the request**.
+   - It **reads the JWT** from the request cookies.
+   - It **validates the JWT** (or refreshes it if expired).
+   - It **fetches data** from the backend using the JWT.
+3. The server **renders the page** with the fetched data and sends it to the browser.
+
+---
+
+### **Why Cookies are Required for JWT in SSR**
+- Since **SSR runs on the server**, **there is no browser `localStorage` or `sessionStorage`**.
+- The browser **automatically sends cookies** with every request, so the JWT can be accessed in the request headers.
+
+🔹 **Example in Next.js (getServerSideProps)**
+```javascript
+import { parseCookies } from "nookies";
+
+export async function getServerSideProps(context) {
+  const cookies = parseCookies(context);
+  const token = cookies.jwt; // Get JWT from cookies
+
+  if (!token) {
+    return {
+      redirect: { destination: "/login", permanent: false },
+    };
+  }
+
+  // Fetch data with token
+  const res = await fetch("https://api.example.com/data", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const data = await res.json();
+
+  return { props: { data } };
+}
+```
+
+---
+
+### **But Do We Still Need an Interceptor?**
+**Yes, but for client-side API calls!**  
+Even if the server gets the JWT from cookies during SSR, once the page is loaded in the browser:
+- The frontend still needs to make authenticated API requests.
+- An **interceptor can handle expired tokens** (e.g., refreshing them when needed).
+- It can **add custom headers, retry failed requests, and handle errors centrally**.
+
+🔹 **Example: Using Axios Interceptor for Client-Side Requests**
+```javascript
+import axios from "axios";
+import Cookies from "js-cookie";
+
+const api = axios.create({
+  baseURL: "https://api.example.com",
+  withCredentials: true, // Ensures cookies are sent with requests
+});
+
+api.interceptors.request.use((config) => {
+  const token = Cookies.get("jwt");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+export default api;
+```
+
+---
+
+### **🚀 TL;DR**
+✅ **SSR requires JWT in cookies** (because there's no `localStorage`).  
+✅ **The server reads JWT from cookies and validates it before fetching data.**  
+✅ **Interceptors are still needed for client-side requests** (e.g., refreshing tokens, error handling, adding headers).  
+
+👉 **If your JWT is short-lived, you'll still need an API to refresh tokens in the background!**
